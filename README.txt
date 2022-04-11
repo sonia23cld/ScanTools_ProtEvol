@@ -2,8 +2,8 @@
 
 Author: Patrick Monnahan (https://github.com/pmonnahan/ScanTools)
 Contact: pmonnahan@gmail.com
-Modified and completed by: Magdalena Bohutínská
-Contact: holcovam@natur.cuni.cz
+Modified and completed by: Magdalena Bohutínsk, Sonia Celestini
+Contact: holcovam@natur.cuni.cz, sonia.celestini@natur.cuni.cz
 
 Program Description:  ScanTools_ProtEvol is a collection of scripts for window-based genomic analyses and site-based analysis of selection acting on amino acid substitutions and a wrapper that facilitates job submission on a PbS Pro-based computing cluster. The program begins with a set of VCF's to be analyzed as well as a population key (example template can be found on github repository) that assigns the individual names in the VCF's to populations. 
 For site-based analyses requiring additional annotation of variant effect and amino acid substitution type, the VCF has to be annotated in SnpEff (http://snpeff.sourceforge.net/index.html) prior to the analysis. Example annotation script can be found on repository. 
@@ -25,13 +25,13 @@ INTRODUCTION
 
 To download the program, login to your cluster system and use git clone <link_to_repository>.  Then, change directory to the newly cloned "ScanTools_ProtEvol" directory and invoke the python3 console. Import the program into python3 by simply typing 'import ScanTools' from within the ScanTools_ProtEvol directory.  Using the wrapper (ScanTools.py) is greatly aided by a rudimentary understanding of python, particularly regarding the use of 'methods' associated with 'objects'.  The first step is to create a 'ScanTools' object and all subsequent operations will be performed by calling the methods associated with this object.  For example,
 
-test = ScanTools.scantools("<path_to_directory_containing_PopKey.csv>", "encoding")
+test = ScanTools.scantools("<path_to_directory_containing_PopKey.csv>", popkey="<name_of_PopKey_csvFile>")
 
-creates a ScanTools object named 'test' and assigns several relevant peices of information to the methods of 'test'.  This directory MUST contain a 'csv' file named 'PopKey.csv', which will be used to associate individuals to populations.  If the csv is encoded, you will have to specify the type of encoding as the second argument.  However, this should typically not be the case.  All output from any subsequent steps will be output to the directory specified in the initialization of the ScanTools object.  
+creates a ScanTools object named 'test' and assigns several relevant peices of information to the methods of 'test'.  This directory MUST contain a 'csv' (which you will call with popkey) which will be used to associate individuals to populations.  If the csv is encoded, you will have to specify the type of encoding as additional argument.  However, this should typically not be the case. 
 
 To split VCF's and convert them to the necessary format, you call the '.splitVCFs' method by calling:
 
-test.splitVCFs(vcf_dir=<path_to_vcfs>, min_dp=<minimum_depth_for_genotype_call>, mffg=<maximum_fraction_filtered_genotypes>)
+test.splitVCFs(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>", vcf_dir="<relative_path_to_vcfs>", vcf_pattern="<common_pattern_in_names_vcfs_you_want_to_use>", min_dp=<minimum_depth_for_genotype_call>, mffg=<maximum_fraction_filtered_genotypes>)
 
 This methods makes several calls to GATK to filter the vcfs and convert them to table format and subsequently calls either one or two custom python scripts to convert the genotype calls to numeric format.  All subsequent analyses can be carried out similarly by calling the relevant methods.  The full list of methods and a brief description is provided below, but look within the python scripts themselves for a more detailed description.  
 
@@ -61,10 +61,12 @@ Most of these methods include a print1 argument that, if set to True, will print
  - .combinePops(pop_list, new_pop_name): combines two or more populations into new population with the name specified.  Original populations remain unchanged.
 
  - .splitVCFs(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes):  Split VCF's by population, filter, and convert to input format for downstream analyses.
+
+ - .splitVCFsNorepol(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>",vcf_dir="<full_path _to_directory_containing_vcfs>",ref_path, ref_name,suffix="<pattern_for_output_directory>", vcf_pattern="<common_pattern_in_names_vcfs_you_want_to_use>", minimum_individual_depth, max_fraction_filtered_genotypes)
  
  - .splitVCFsAnn(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes):  Same as .splitVCFs but works with SnpEff-annotated vcf. 
  
- - .splitVCFsTreeMix(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes): Makes input for scripts in TreeMix repository
+ - .splitVCFsTreeMix(sca_dir, vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes): Makes input for scripts in TreeMix repository
  
  - .recode(table_directory): Should not be necessary for the most part.  This will typically be called during '.splitVCFs', but was left in code as standalone method in case there is need to convert a table (from GATK's VariantsToTable) to the reformatted input used in ScanTools.
 
@@ -76,13 +78,13 @@ Most of these methods include a print1 argument that, if set to True, will print
 
  - .calcFreqs(self, recode_dir, outfile_name, sites_file, list_of_populations):  Calls calcFreqs_atSites.py.  Takes a list of sites in (sites_file, should be formatted so that each line simply has scaffold and position, with scaffold simply coded as an integer 0-8) and calculates the allele frequency in each population (list_of_populations) at each site
 
-  - .calcwpm(recoded_file_directory, window_size, minimum_snps):  Calls wpm.py, which calculates within-population diversity metrics and neutrality test statistics in windows along the genome as well as genome-wide for each population.  Windows are specified in terms of base pairs.  Windows with fewer than the specified minimum SNPs will not be reported.  All populations are downsampled by default to the '.min_ind' value unless specified otherwise using 'sampind' argument.
+  - .calcwpm(scan_dir, recoded_file_directory, window_size, minimum_snps):  Calls wpm.py, which calculates within-population diversity metrics and neutrality test statistics in windows along the genome as well as genome-wide for each population.  Windows are specified in terms of base pairs.  Windows with fewer than the specified minimum SNPs will not be reported.  All populations are downsampled by default to the '.min_ind' value unless specified otherwise using 'sampind' argument.
 
   - .concatWPM(directory_containing_wpm_output, suffix, name):  Concatenates output of wpm.py across populations.  Suffix is a string that identifies the name of the output files to concatenate that follows the population name.  'name' is used to name the concatenated file.
 
-  - .calcBPM(recoded_file_directory, pops, output_name, window_size, minimum_snps):  Calls bpm.py, which calculates between-population differentiation metrics: Fst, Rho (for interploidy comparisons), dxy, fixed differences, and allele frequency difference in windows along the genome.  This can calculate differentiation for two or more populations, but will get seriously bogged down if the number of populations is large.  For this reason, you must explicitly provide a list of populations as an argument.
+  - .calcBPM(scan_dir, recoded_file_directory, pops, output_name, window_size, minimum_snps):  Calls bpm.py, which calculates between-population differentiation metrics: Fst, Rho (for interploidy comparisons), dxy, fixed differences, and allele frequency difference in windows along the genome.  This can calculate differentiation for two or more populations, but will get seriously bogged down if the number of populations is large.  For this reason, you must explicitly provide a list of populations as an argument.
   
-  - .calcBPMann(recoded_file_directory, pops, output_name, window_size, minimum_snps):  Calls bpmann.py, same as bpm.py but works with SnpEff-annotated vcf. continued in https://github.com/mbohutinska/ProtEvol/blob/master/protScanTools.r
+  - .calcBPMann(recoded_file_directory, pops, output_name, output_folder, window_size, minimum_snps):  Calls bpmann.py, same as bpm.py but works with SnpEff-annotated vcf. continued in https://github.com/mbohutinska/ProtEvol/blob/master/protScanTools.r
 
   - .calcPairwisebpm: same as above, but instead calculates metrics for every pair of populations passed in the 'pops' argument.
   

@@ -10,7 +10,7 @@ import glob
 
 class scantools:
 
-    def __init__(self, WorkingDir, encoding="-9"):
+    def __init__(self, WorkingDir, popkey, encoding="-9"):
         if WorkingDir.endswith("/") is False:
             WorkingDir += "/"
         if os.path.exists(WorkingDir) is False:
@@ -19,9 +19,9 @@ class scantools:
         if os.path.exists(WorkingDir + "OandE/") is False:
             os.mkdir(WorkingDir + "OandE/")
         if encoding != "-9":
-            POP_file = pandas.read_csv(WorkingDir + "PopKey.csv", header=0, encoding=encoding)
+            POP_file = pandas.read_csv(WorkingDir + popkey, header=0, encoding=encoding)
         else:
-            POP_file = pandas.read_csv(WorkingDir + "PopKey.csv", header=0)
+            POP_file = pandas.read_csv(WorkingDir + popkey, header=0)
         POP_names = list(POP_file.columns.values)[1:]
         sample_names = list(POP_file['Samples'])
         samps = {}
@@ -95,7 +95,7 @@ class scantools:
         self.samp_nums[popname] = len(new_samps)
         self.log_file.write("Combined Pops: " + str(pops) + " as " + popname + "\n")
 
-    def splitVCFs(self, vcf_dir, min_dp, mffg, ref_path="/storage/pruhonice1-ibot/home/holcovam/references/lyrataV2/", ref_name="alygenomes.fasta", gatk_path="$GATK/GenomeAnalysisTK.jar", repolarization_key="repolarized.lookupKey.perSpeciesThreshold.txt", pops='all', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
+    def splitVCFs(self, scan_dir, vcf_dir, min_dp, mffg, ref_path, ref_name, repolarization_key, vcf_pattern, gatk_path="$GATK/GenomeAnalysisTK.jar", pops='all', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
         '''Purpose:  Find all vcfs in vcf_dir and split them by population according to samples associated with said population.
                     Then, take only biallelic snps and convert vcf to table containing scaff, pos, ac, an, dp, and genotype fields.
                     Finally, concatenate all per-scaffold tables to one giant table. Resulting files will be put into ~/Working_Dir/VCFs/
@@ -148,9 +148,9 @@ class scantools:
                 print(vcf_list)
                     # Select single population and biallelic SNPs for each scaffold and convert to variants table
                     
-                shfile1 = open(pop + vcf_dir_name + '.sh', 'w')
+                shfile1 = open(pop + '_splitVCFs.sh', 'w')
                 shfile1.write('#!/bin/bash\n' +
-                             '#PBS -N '+pop + vcf_dir_name +'\n' +
+                             '#PBS -N '+pop + '_splitVCFs \n' +
                              '#PBS -l walltime='+time_scratch+'\n' +
                              '#PBS -l select=1:ncpus='+ncpu+':mem='+mem+'gb:scratch_local='+scratch_gb+'gb\n' +
                              '#PBS -j oe\n\n' +
@@ -159,12 +159,12 @@ class scantools:
                              'module add parallel-20160622 \n'+
                              'trap \'clean_scratch\' TERM EXIT\n'+
                              'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                             'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                             'DATADIR="'+ scan_dir +'"\n' +
                              'cp '+ref_path+ref_spec+'* $SCRATCHDIR || exit 1\n' +
-                             'cp $DATADIR/'+ vcf_dir +'*vcf.gz* $SCRATCHDIR || exit 1\n'+
+                             'cp $DATADIR/'+ vcf_dir + '*' +vcf_pattern + '*vcf.gz* $SCRATCHDIR || exit 1\n'+
                              'cd $SCRATCHDIR || exit 2\n' +
                              'echo data all scaffolds present in the vcf_dir loaded at `date`\n' +
-                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf"\n' +
+                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES"\n' +
                              'ls *pop.vcf | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --genotypeFilterExpression \\"DP < ' + str(min_dp) + '\\" --genotypeFilterName \\"DP\\" -o {.}.dp1.vcf"\n') # some bug in this part, well yea " were missing?
                 if keep_intermediates is False: shfile1.write('ls *pop.vcf| parallel -j '+str(int(ncpu)-2)+' "rm {} {}.idx"\n')
                 shfile1.write('ls *dp1.vcf| parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --setFilteredGtToNocall -o {.}.nc.vcf"\n')
@@ -194,13 +194,13 @@ class scantools:
                 shfile1.close()
 
                 if print1 is False:  # send job to the MetaCentrum
-                   cmd1 = ('qsub ' + pop + vcf_dir_name + '.sh')
+                   cmd1 = ('qsub ' + pop +'_splitVCFs.sh')
                    p1 = subprocess.Popen(cmd1, shell=True)
                    sts1 = os.waitpid(p1.pid, 0)[1]
                    joblist.append(p1.pid)
 
                 else:
-                   file1 = open(pop + vcf_dir_name + '.sh', 'r')
+                   file1 = open(pop + '_splitVCFs.sh', 'r')
                    data1 = file1.read()
                    print(data1)
                    
@@ -215,10 +215,12 @@ class scantools:
                                     "Populations: " + str(pops) + "\n")
 
 
-    def splitVCFsNorepol(self, vcf_dir, min_dp, mffg, ref_path="/storage/pruhonice1-ibot/home/holcovam/references/lyrataV2/", ref_name="alygenomes.fasta", gatk_path="$GATK/GenomeAnalysisTK.jar", pops='all', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
+    def splitVCFsNorepol(self, scan_dir, vcf_dir, min_dp, mffg, ref_path, ref_name, gatk_path="$GATK/GenomeAnalysisTK.jar", pops='all', suffix='', vcf_pattern='', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
         '''Purpose:  Find all vcfs in vcf_dir and split them by population according to samples associated with said population.
                     Then, take only biallelic snps and convert vcf to table containing scaff, pos, ac, an, dp, and genotype fields.
-                    Finally, concatenate all per-scaffold tables to one giant table. Resulting files will be put into ~/Working_Dir/VCFs/
+                    Finally, concatenate all per-scaffold tables to one giant table. Resulting files will be put into ~/Working_Dir/VCFs.../
+datadir is the folder where you have the python scripts
+
             Notes: mffg is maximum fraction of filtered genotypes.  Number of actual genotypes allowed will be rounded up.
                     If you want to print the batch scripts, you must set print1 and overwrite to True'''
 
@@ -226,9 +228,9 @@ class scantools:
             vcf_dir += "/"
         vcf_dir_name = vcf_dir.split("/")[-2]
         if use_scratch is True:
-            outdir = "VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
+            outdir = "VCF_splitVCFsNorepol" + str(suffix) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
         else:
-            outdir = self.dir + "VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
+            outdir = self.dir + "VCF_splitVCFsNorepol" + str(suffix) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
         self.vcf_dir = vcf_dir
         if outdir not in self.split_dirs:
             self.split_dirs.append(outdir)
@@ -279,12 +281,12 @@ class scantools:
                              'module add parallel-20160622 \n'+
                              'trap \'clean_scratch\' TERM EXIT\n'+
                              'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                             'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                             'DATADIR="'+ scan_dir +'"\n' +
                              'cp '+ref_path+ref_spec+'* $SCRATCHDIR || exit 1\n' +
-                             'cp $DATADIR/'+ vcf_dir +'*vcf.gz* $SCRATCHDIR || exit 1\n'+
+                             'cp '+ vcf_dir + '*' + vcf_pattern + '*vcf.gz* $SCRATCHDIR || exit 1\n'+
                              'cd $SCRATCHDIR || exit 2\n' +
                              'echo data all scaffolds present in the vcf_dir loaded at `date`\n' +
-                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf"\n' +
+                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES"\n' +
                              'ls *pop.vcf | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --genotypeFilterExpression \\"DP < ' + str(min_dp) + '\\" --genotypeFilterName \\"DP\\" -o {.}.dp1.vcf"\n') # some bug in this part, well yea " were missing?
                 if keep_intermediates is False: shfile1.write('ls *pop.vcf| parallel -j '+str(int(ncpu)-2)+' "rm {} {}.idx"\n')
                 shfile1.write('ls *dp1.vcf| parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --setFilteredGtToNocall -o {.}.nc.vcf"\n')
@@ -330,7 +332,7 @@ class scantools:
 
 
 
-    def splitVCFsTreeMix(self, vcf_dir, min_dp, mffg, ref_path="/storage/pruhonice1-ibot/home/holcovam/references/lyrataV2/", ref_name="alygenomes.fasta", gatk_path="$GATK/GenomeAnalysisTK.jar", pops='all', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
+    def splitVCFsTreeMix(self, scan_dir, vcf_dir, min_dp, mffg, ref_path, ref_name, gatk_path="$GATK/GenomeAnalysisTK.jar", pops='all', mem=16, time_scratch='4:00:00', ncpu=4, scratch_path="$SCRATCHDIR",print1=True, overwrite=False, scratch_gb="10", keep_intermediates=False, use_scratch=True):
         '''Purpose:  Find all vcfs in vcf_dir and split them by population according to samples associated with said population.
                     Then, take only biallelic snps and convert vcf to table containing scaff, pos, ac, an, dp, and genotype fields.
                     Finally, concatenate all per-scaffold tables to one giant table. Resulting files will be put into ~/Working_Dir/VCFs/
@@ -341,9 +343,9 @@ class scantools:
             vcf_dir += "/"
         vcf_dir_name = vcf_dir.split("/")[-2]
         if use_scratch is True:
-            outdir = "VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
+            outdir = "TreeMix_VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
         else:
-            outdir = self.dir + "VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
+            outdir = self.dir + "TreeMix_VCF_" + str(vcf_dir_name) + "_DP" + str(min_dp) + ".M" + str(mffg) + "/"
         self.vcf_dir = vcf_dir
         if outdir not in self.split_dirs:
             self.split_dirs.append(outdir)
@@ -385,7 +387,7 @@ class scantools:
                     
                 shfile1 = open(pop + vcf_dir_name + '.sh', 'w')
                 shfile1.write('#!/bin/bash\n' +
-                             '#PBS -N '+pop + vcf_dir_name +'\n' +
+                             '#PBS -N '+pop + vcf_dir_name +'_TreeMix'+'\n' +
                              '#PBS -l walltime='+time_scratch+'\n' +
                              '#PBS -l select=1:ncpus='+ncpu+':mem='+mem+'gb:scratch_local='+scratch_gb+'gb\n' +
                              '#PBS -j oe\n\n' +
@@ -394,12 +396,12 @@ class scantools:
                              'module add parallel-20160622 \n'+
                              'trap \'clean_scratch\' TERM EXIT\n'+
                              'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                             'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                             'DATADIR="'+ scan_dir +'"\n' +
                              'cp '+ref_path+ref_spec+'* $SCRATCHDIR || exit 1\n' +
-                             'cp $DATADIR/'+ vcf_dir +'*vcf.gz* $SCRATCHDIR || exit 1\n'+
+                             'cp '+ vcf_dir +'*TreeMix*vcf.gz* $SCRATCHDIR || exit 1\n'+
                              'cd $SCRATCHDIR || exit 2\n' +
                              'echo data all scaffolds present in the vcf_dir loaded at `date`\n' +
-                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf"\n'+
+                             'ls *vcf.gz | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T SelectVariants -R ' + ref_name + ' -V {} '  + sample_string1 + ' -o {.}.' + pop + '.pop.vcf --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES"\n'+
                              'ls *pop.vcf | parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --genotypeFilterExpression \\"DP < ' + str(min_dp) + '\\" --genotypeFilterName \\"DP\\" -o {.}.dp1.vcf"\n') # some bug in this part, well yea " were missing?
                 if keep_intermediates is False: shfile1.write('ls *pop.vcf| parallel -j '+str(int(ncpu)-2)+' "rm {} {}.idx"\n')
                 shfile1.write('ls *dp1.vcf| parallel -j '+str(int(ncpu)-2)+' "java -Xmx' + str(int(int(mem)/(int(ncpu)-2))) + 'g -jar ' + gatk_path + ' -T VariantFiltration -R ' + ref_name + ' -V {} --setFilteredGtToNocall -o {.}.nc.vcf"\n')
@@ -608,7 +610,7 @@ class scantools:
             print("recode_dir does not exist")
 
 
-    def calcwpm(self, recode_dir, window_size, min_snps, pops="all", print1=False, mem=16, ncpu=1, sampind="-99", scratch_gb=2, use_repol=True, time_scratch="4:00:00", overwrite=False):
+    def calcwpm(self, scan_dir, recode_dir, window_size, min_snps, pops="all", print1=False, mem=16, ncpu=1, sampind="-99", scratch_gb=2, use_repol=True, time_scratch="4:00:00", overwrite=False):
         '''Purpose: Calculate within population metrics including: allele frequency, expected heterozygosity, Wattersons theta, Pi, ThetaH, ThetaL and neutrality tests: D, normalized H, E
            Notes:  Currently, all populations are downsampled to same number of individuals.  By default, this minimum individuals across populations minus 1 to allow for some missing data
                     It is worth considering whether downsampling should be based on number of individuals or number of alleles.
@@ -652,7 +654,7 @@ class scantools:
                                       'module add python34-modules-gcc\n'+
                                       'trap \'clean_scratch\' TERM EXIT\n'+
                                       'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                                      'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                                      'DATADIR="'+ scan_dir +'"\n' +
                                       'cp $DATADIR/wpm.py $SCRATCHDIR || exit 1\n'+
                                       'cp $DATADIR/'+ recode_dir + pop + suffix +' $SCRATCHDIR || exit 1\n'+
                                       'cd $SCRATCHDIR || exit 2\n' +
@@ -694,7 +696,7 @@ class scantools:
         else:
             print("Did not find recode_dir.  Must run splitVCFs followed by recode before able to calculate within population metrics")
 
-    def calcbpm(self, recode_dir, pops, output_name, window_size, min_snps, mem=16, ncpu=1, use_repol=True, keep_intermediates=False, time_scratch="1:00:00",scratch_gb=2, print1=False):
+    def calcbpm(self, scan_dir, recode_dir, pops, output_name, output_folder, window_size, min_snps, mem=16, ncpu=1, use_repol=True, keep_intermediates=False, time_scratch="1:00:00",scratch_gb=2, print1=False):
         '''Purpose:  Calculate between population metrics including: Dxy, Fst (using Weir and Cockerham 1984), and Rho (Ronfort et al. 1998)
            Notes: User provides a list of populations to be included.  For pairwise estimates, simply provide two populations
                     Calculations are done for windows of a given bp size.  User also must specify the minimum number of snps in a window
@@ -726,7 +728,7 @@ class scantools:
                 print("Did not find all input files!!  Aborting.")
                 os.remove(recode_dir + output_name + '.concat.txt')
             else:
-                shfile3 = open(recode_dir + output_name + '.bpm.sh', 'w')
+                shfile3 = open(scan_dir + output_name + '.bpm.sh', 'w')
 
                 shfile3.write('#!/bin/bash -e\n' +
                               '#PBS -N '+output_name +'\n' +
@@ -738,7 +740,7 @@ class scantools:
                               'module add python34-modules-gcc\n'+
                               'trap \'clean_scratch\' TERM EXIT\n'+
                               'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                              'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                              'DATADIR="'+ scan_dir +'"\n' +
                               'cp $DATADIR/bpm.py $SCRATCHDIR || exit 1\n'+
                               'cp '+ file_string.split(" ")[0] +' $SCRATCHDIR || exit 1\n'+
                               'cp '+ file_string.split(" ")[1] +' $SCRATCHDIR || exit 1\n'+
@@ -753,12 +755,12 @@ class scantools:
                 if keep_intermediates is False:
                     shfile3.write('rm ' + output_name + '.concat.txt\n')
                     
-                shfile3.write('cp $SCRATCHDIR/* $DATADIR/'+recode_dir+' || export CLEAN_SCRATCH=false\n'+
+                shfile3.write('cp $SCRATCHDIR/* $DATADIR/'+output_folder+' || export CLEAN_SCRATCH=false\n'+
                               'printf "\\nFinished\\n\\n"\n')
                 shfile3.close()
 
                 if print1 is False:
-                    cmd3 = ('qsub ' + recode_dir + output_name + '.bpm.sh')
+                    cmd3 = ('qsub ' + scan_dir + output_name + '.bpm.sh')
                     p3 = subprocess.Popen(cmd3, shell=True)
                     sts3 = os.waitpid(p3.pid, 0)[1]
 
@@ -770,11 +772,11 @@ class scantools:
                                         "Populations: " + str(pops) + "\n")
 
                 else:
-                    file3 = open(recode_dir + output_name + '.bpm.sh', 'r')
+                    file3 = open(scan_dir + output_name + '.bpm.sh', 'r')
                     data3 = file3.read()
                     print(data3)
 
-                os.remove(recode_dir + output_name + '.bpm.sh')
+                os.remove(scan_dir + output_name + '.bpm.sh')
         elif len(pops) < 2:
             print("'pops' argument must be a list of strings specifiying two or more population names as they appear in input file prefixes.  len(pops) was < 2")
         else:
@@ -827,7 +829,7 @@ class scantools:
                               'module add python34-modules-gcc\n'+
                               'trap \'clean_scratch\' TERM EXIT\n'+
                               'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                              'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                              'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                               'cp $DATADIR/bpmann.py $SCRATCHDIR || exit 1\n'+
                               'cp '+ file_string.split(" ")[0] +' $SCRATCHDIR || exit 1\n'+
                               'cp '+ file_string.split(" ")[1] +' $SCRATCHDIR || exit 1\n'+
@@ -870,7 +872,7 @@ class scantools:
             print("Did not find recode_dir.  Must run splitVCFs followed by recode before able to calculate between population metrics")
 
 
-    def calcPairwisebpm(self, recode_dir, pops, window_size, min_snps, print1=False, mem=16, ncpu=1, use_repol=True, keep_intermediates=False, time_scratch="1:00:00", overwrite=False, scratch_gb=1):
+    def calcPairwisebpm(self, scan_dir, recode_dir, window_size, min_snps, pops="all", print1=False, mem=16, ncpu=1, use_repol=True, keep_intermediates=False, time_scratch="1:00:00", overwrite=False, scratch_gb=1):
         '''Purpose:  Calculate between population metrics including: Dxy, Fst (using Weir and Cockerham 1984), and Rho (Ronfort et al. 1998)
            Notes: User provides a list of populations to be included.  For pairwise estimates, simply provide two populations
                     Calculations are done for windows of a given bp size.  User also must specify the minimum number of snps (min_snps) in a window
@@ -883,6 +885,9 @@ class scantools:
 
         if recode_dir.endswith("/") is False:
             recode_dir += "/"
+        
+        if pops == "all":
+            pops = self.pops
 
         if os.path.exists(recode_dir) is True and len(pops) > 1:
             # Concatenate input files and sort them
@@ -919,7 +924,7 @@ class scantools:
                                       'module add python34-modules-gcc\n'+
                                       'trap \'clean_scratch\' TERM EXIT\n'+
                                       'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                                      'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                                      'DATADIR="'+ scan_dir +'"\n' +
                                       'cp $DATADIR/bpm.py $SCRATCHDIR || exit 1\n'+
                                       'cp $DATADIR/'+ recode_dir + pop1 + suffix +' $SCRATCHDIR || exit 1\n'+
                                       'cp $DATADIR/'+ recode_dir + pop2 + suffix +' $SCRATCHDIR || exit 1\n'+
@@ -1010,7 +1015,7 @@ class scantools:
                                       'module add python34-modules-gcc\n'+
                                       'trap \'clean_scratch\' TERM EXIT\n'+
                                       'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                                      'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                                      'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                                       'cp $DATADIR/bpmann.py $SCRATCHDIR || exit 1\n'+
                                       'cp $DATADIR/'+ recode_dir + pop1 + suffix +' $SCRATCHDIR || exit 1\n'+
                                       'cp $DATADIR/'+ recode_dir + pop2 + suffix +' $SCRATCHDIR || exit 1\n'+
@@ -1099,7 +1104,7 @@ class scantools:
                               'module add R-3.4.3-gcc\n'+
                               'trap \'clean_scratch\' TERM EXIT\n'+
                               'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                              'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                              'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                               'cp $DATADIR/'+ recode_dir + 'outlierAASs'+str(outlier_quantile)+pop+'.r $SCRATCHDIR || exit 1\n'+
                               'cp $DATADIR/'+ alcode_path +' $SCRATCHDIR || exit 1\n'+
                               'cp $DATADIR/'+ recode_dir + pop +'_WS1_MS1_BPM.txt $SCRATCHDIR || exit 1\n'+
@@ -1180,7 +1185,7 @@ class scantools:
                       'module add R-3.4.3-gcc\n'+
                       'trap \'clean_scratch\' TERM EXIT\n'+
                       'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                      'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                      'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                       'cp $DATADIR/'+ recode_dir + 'N_SperGene.r $SCRATCHDIR || exit 1\n'+
                       'cp $DATADIR/'+ alcode_path +' $SCRATCHDIR || exit 1\n'+
                       'linbash=('+ lineages.replace(","," ") +')\n'+
@@ -1327,7 +1332,7 @@ class scantools:
                           'module add python34-modules-gcc\n'+
                           'trap \'clean_scratch\' TERM EXIT\n'+
                           'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                          'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                          'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                           'cp $DATADIR/calcAFS.py $SCRATCHDIR || exit 1\n' +
                           'cp $DATADIR/'+ infile +' $SCRATCHDIR || exit 1\n'+
                           'cd $SCRATCHDIR || exit 2\n' +
@@ -1513,7 +1518,7 @@ class scantools:
                           'module add bedtools-2.26.0\n' +
                           'trap \'clean_scratch\' TERM EXIT\n'+
                           'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                          'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools"\n' +
+                          'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                           'cp $DATADIR/'+ annotation_file +' $SCRATCHDIR || exit 1\n'+
                           'cp $DATADIR/'+ recode_dir + in_file +' $SCRATCHDIR || exit 1\n'+
                           'cd $SCRATCHDIR || exit 2\n' +
@@ -1743,7 +1748,7 @@ class scantools:
                               'module add python36-modules-gcc\n'+
                               'trap \'clean_scratch\' TERM EXIT\n'+
                               'if [ ! -d "$SCRATCHDIR" ] ; then echo "Scratch not created!" 1>&2; exit 1; fi \n' +
-                              'DATADIR="/storage/pruhonice1-ibot/home/holcovam/ScanTools/"\n' +
+                              'DATADIR="/storage/brno3-cerit/home/sonia_celestini/ScanTools"\n' +
                               'cp $DATADIR/FSC2input.py $SCRATCHDIR || exit 1\n' +
                               'cp $DATADIR/'+ concat_name +' $SCRATCHDIR || exit 1\n'+
                               'cd $SCRATCHDIR || exit 2\n' +
