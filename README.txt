@@ -2,12 +2,12 @@
 
 Author: Patrick Monnahan (https://github.com/pmonnahan/ScanTools)
 Contact: pmonnahan@gmail.com
-Modified and completed by: Magdalena Bohutínsk, Sonia Celestini
-Contact: holcovam@natur.cuni.cz, sonia.celestini@natur.cuni.cz
+Modified by: Magdalena Bohutínska (holcovam@natur.cuni.cz)
+Last modified by: Sonia Celestini (sonia.celestini@natur.cuni.cz)
 
 Program Description:  ScanTools_ProtEvol is a collection of scripts for window-based genomic analyses and site-based analysis of selection acting on amino acid substitutions and a wrapper that facilitates job submission on a PbS Pro-based computing cluster. The program begins with a set of VCF's to be analyzed as well as a population key (example template can be found on github repository) that assigns the individual names in the VCF's to populations. 
-For site-based analyses requiring additional annotation of variant effect and amino acid substitution type, the VCF has to be annotated in SnpEff (http://snpeff.sourceforge.net/index.html) prior to the analysis. Example annotation script can be found on repository. 
-VCF's are split according by a population and converted to a simplified format, which are used for all downstream analyses. Currently, the major downstream analyses implemented are calculation of within population diversity metrics and neutrality tests, between population differentiation metrics, demographic analyses using fastsimcoal2, analyses of dN/dS and scans for highly differentiated amino acid substitutions.
+For site-based analyses requiring additional annotation of variant effect and amino acid substitution type, the VCF has to be annotated in SnpEff (http://snpeff.sourceforge.net/index.html) prior to the analysis. An example annotation script can be found on repository. 
+VCF's are split according by population and converted to a simplified format, which are used for all downstream analyses. Currently, the major downstream analyses implemented are calculation of within population diversity metrics and neutrality tests, between population differentiation metrics, demographic analyses using fastsimcoal2, analyses of dN/dS and scans for highly differentiated amino acid substitutions.
 
 ###########################################################
 
@@ -31,13 +31,13 @@ creates a ScanTools object named 'test' and assigns several relevant peices of i
 
 To split VCF's and convert them to the necessary format, you call the '.splitVCFs' method by calling:
 
-test.splitVCFs(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>", vcf_dir="<relative_path_to_vcfs>", vcf_pattern="<common_pattern_in_names_vcfs_you_want_to_use>", min_dp=<minimum_depth_for_genotype_call>, mffg=<maximum_fraction_filtered_genotypes>)
+test.splitVCFsNorepol(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>", vcf_dir="<full_path_to_vcf>", vcf_pattern="<pattern_in_name_vcf_you_want_to_use>", min_dp=<minimum_depth_for_genotype_call>, mffg=<maximum_fraction_filtered_genotypes>)
 
-This methods makes several calls to GATK to filter the vcfs and convert them to table format and subsequently calls either one or two custom python scripts to convert the genotype calls to numeric format.  All subsequent analyses can be carried out similarly by calling the relevant methods.  The full list of methods and a brief description is provided below, but look within the python scripts themselves for a more detailed description.  
+This method makes several calls to GATK to filter the vcfs and convert them to table format and subsequently calls either one or two custom python scripts to convert the genotype calls to numeric format. The output is a txt file (recode.txt or repol.txt if you use a repolarization key) for each column of your Popkey file, unless differently specified with the flag "pops" - to select only few columns of the Popkey file. All subsequent analyses can be carried out similarly by calling the relevant methods. The full list of methods and a brief description is provided below, but look within the python scripts themselves for a more detailed description.  
 
 LIST OF METHODS:
 
-Within python3, you can view all methods associated with an object by calling 'dir(<object_name>)'.  Ignore methods surrounded by underscores...these are 'intrinsic' methods that are not directly relevant for our purposes.  One more important note on methods in python is that they are quite versatile.  For example, they can be functions that take arguments and carry out operations associated with the parent object.  Or, methods can objects that store information associated with the parent object.  
+Within python3, you can view all methods associated with an object by calling 'dir(<object_name>)'. Ignore methods surrounded by underscores...these are 'intrinsic' methods that are not directly relevant to our purposes.  Another important note on python methods is that they are quite versatile.  For example, they can be functions that take arguments and carry out operations associated with the parent object.  Or, methods can be objects that store information associated with the parent object.  
 
 Several of the ScanTools methods are OBJECTS containing information about the parent object ('test' in the above example):
 
@@ -52,7 +52,7 @@ Several of the ScanTools methods are OBJECTS containing information about the pa
 ScanTools methods that are FUNCTIONS to carry out operations (only required arguments are shown; see code for full list of arguments):
 
 **Important** 
-Most of these methods include a print1 argument that, if set to True, will print the shell scripts instead of submitting them to the cluster.  This is a useful check that you should always do before your first real execution of a method.  The argument names provided below are not the actual argument names required by each function.  Rather, the arguments below are descriptions of the actual arguments in the program.  Also, most of the methods have an option to change the partition, time, and memory requested for each job.  For methods that necessarily generate large intermediate files (.splitVCFS(), .calcbpm(), .generateFSC2input()), there is an option to use scratch (use_scratch=True and scratch_path=/path/to/scratch/directory).  However, this requires that the user to setup their directory on the scratch drive.
+Most of these methods include a print1 argument that, if set to True, will print the shell scripts instead of submitting them to the cluster.  This is a useful check that you should always do before your first real execution of a method.  The argument names provided below are not the actual argument names required by each function.  Rather, the arguments below are descriptions of the actual arguments in the program.  Also, most of the methods have an option to change the partition, time, and memory requested for each job.  For methods that necessarily generate large intermediate files (.splitVCFS(), .calcbpm(), .generateFSC2input()), there is an option to use scratch (use_scratch=True and scratch_path=/path/to/scratch/directory).  However, this requires the user to set up their directory on the scratch drive.
 
  - .removePop(pops_to_be_removed): takes a list of populations and removes them from '.pops'. E.g. test.removePops(['Pop1','Pop2']).  Even single populations should be specified in a list format.  '.min_ind' will be recalculated.
 
@@ -60,13 +60,13 @@ Most of these methods include a print1 argument that, if set to True, will print
 
  - .combinePops(pop_list, new_pop_name): combines two or more populations into new population with the name specified.  Original populations remain unchanged.
 
- - .splitVCFs(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes):  Split VCF's by population, filter, and convert to input format for downstream analyses.
+ - .splitVCFs(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes):  Split VCF's by population, filter, and convert to input format for downstream analyses. NOTE: it requires a repolarization key. Run the command below if you don't have one.
 
- - .splitVCFsNorepol(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>",vcf_dir="<full_path _to_directory_containing_vcfs>",ref_path, ref_name,suffix="<pattern_for_output_directory>", vcf_pattern="<common_pattern_in_names_vcfs_you_want_to_use>", minimum_individual_depth, max_fraction_filtered_genotypes)
+ - .splitVCFsNorepol(scan_dir="<full_path _to_directory_containing_Scantools_python_scripts>",vcf_dir="<full_path _to_directory_containing_vcf>",ref_path, ref_name,suffix="<pattern_for_output_directory_name>", vcf_pattern="<pattern_in_name_vcf_you_want_to_use>", minimum_individual_depth, max_fraction_filtered_genotypes)
  
  - .splitVCFsAnn(vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes):  Same as .splitVCFs but works with SnpEff-annotated vcf. 
  
- - .splitVCFsTreeMix(sca_dir, vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes): Makes input for scripts in TreeMix repository
+ - .splitVCFsTreeMix(sca_dir, vcf_directory, minimum_individual_depth, max_fraction_filtered_genotypes): Makes input for scripts in TreeMix repository. NOTE: the vcf input file should contain "TreeMix" in its name.
  
  - .recode(table_directory): Should not be necessary for the most part.  This will typically be called during '.splitVCFs', but was left in code as standalone method in case there is need to convert a table (from GATK's VariantsToTable) to the reformatted input used in ScanTools.
 
@@ -111,3 +111,27 @@ Most of these methods include a print1 argument that, if set to True, will print
   - .gatherFSC2output(FSC2_Data_Parent_Directory):  This method collects all information from the '.bestlhood' output files of FSC2 that is buried in the sub-directories and outputs the information into one of two files:  Likelihoods file and parameters file.
 
   - .queryFSC2input
+
+############################################
+FURTHER NOTES FROM S. CELESTINI
+
+- The First column of the Popkey has always to be called "Samples"
+
+- If the scaffold/contig names in your vcf do not start with "scaffold", you will encounter an error. Go to the file recode012.py at line number 22 and change the command based on your needs.
+
+- I noticed that the function calcbpm has a bug (and maybe also all the other functions that do similar calculations - to check). Sometimes, in the output file, the last window/position of a chromosome will be labeled with the chromosome name of the row immediately after. This is a problem, especially if your data is divided into many scaffolds. I wrote an R script to correct the output files (I didn't have time to go to the source problem): Correct_ScanTools.R
+
+- Example command pipeline:
+
+module add python36-modules-gcc
+
+python3
+
+import ScanTools
+
+test = ScanTools.scantools("/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", popkey="PopKey_alyssum.csv")
+
+test.splitVCFsNorepol(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", vcf_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/vcfs", ref_path="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/fasta/", ref_name="alyssum.fasta", vcf_pattern= "alyssum.fourfold.bt.bipassed.", min_dp="8",mffg="0.2", mem="10", time_scratch='05:00:00', ncpu="8", overwrite=True, scratch_gb="1", keep_intermediates=True, use_scratch=True, scratch_path="$SCRATCHDIR", print1=False)
+
+test.calcbpm(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", recode_dir= "VCF_splitVCFsNorepolmerged.masked_DP8.M0.2", pops=['DSP','TSP'], output_name="Aspruneri", output_folder="Dip_vs_Tet", window_size=1, min_snps=1, mem=35, ncpu=2, use_repol=False, keep_intermediates=False, time_scratch="20:00:00", scratch_gb=1, print1=False)
+
