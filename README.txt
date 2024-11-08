@@ -115,7 +115,7 @@ Most of these methods include a print1 argument that, if set to True, will print
 ############################################
 FURTHER NOTES FROM S. CELESTINI
 
-- The First column of the Popkey has always to be called "Samples"
+- The First column of the Popkey has always to be called "Samples", and the Popkey file doesn't necessarily need to be called "Popkey", use what you want.
 
 - If the scaffold/contig names in your vcf do not start with "scaffold", you will encounter an error. Go to the file recode012.py at line number 22 and change the command based on your needs.
 
