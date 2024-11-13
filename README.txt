@@ -125,6 +125,7 @@ FURTHER NOTES FROM S. CELESTINI
 
 git clone https://github.com/sonia23cld/ScanTools_ProtEvol.git #Then put there the files you need
 
+#Run this from inside the ScanTools folder
 module add python36-modules-gcc
 
 python3
