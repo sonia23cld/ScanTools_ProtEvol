@@ -123,6 +123,8 @@ FURTHER NOTES FROM S. CELESTINI
 
 - Example command pipeline:
 
+git clone https://github.com/sonia23cld/ScanTools_ProtEvol.git #Then put there the files you need
+
 module add python36-modules-gcc
 
 python3
