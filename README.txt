@@ -132,9 +132,9 @@ python3
 
 import ScanTools
 
-test = ScanTools.scantools("/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", popkey="PopKey_alyssum.csv")
+test = ScanTools.scantools("/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/ScanTools_ProtEvol", popkey="PopKey_alyssum.csv")
 
-test.splitVCFsNorepol(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", vcf_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/vcfs", ref_path="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/fasta/", ref_name="alyssum.fasta", vcf_pattern= "alyssum.merged.masked.bt.v2", suffix="merged.masked", min_dp="8",mffg="0.2", mem="40", time_scratch='10:00:00', ncpu="8", overwrite=True, scratch_gb="1", keep_intermediates=True, use_scratch=True, scratch_path="$SCRATCHDIR", print1=False)
+test.splitVCFsNorepol(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/ScanTools_ProtEvol", vcf_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/vcfs", ref_path="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/fasta/", ref_name="alyssum.fasta", vcf_pattern= "alyssum.merged.masked.bt.v2", suffix="merged.masked", min_dp="8",mffg="0.2", mem="40", time_scratch='10:00:00', ncpu="8", overwrite=True, scratch_gb="1", keep_intermediates=True, use_scratch=True, scratch_path="$SCRATCHDIR", print1=False)
 
-test.calcbpm(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/Scantools", recode_dir= "VCF_splitVCFsNorepolmerged.masked_DP8.M0.2", pops=['DSP','TSP'], output_name="Aspruneri", output_folder="Dip_vs_Tet", window_size=1, min_snps=1, mem=35, ncpu=2, use_repol=False, keep_intermediates=False, time_scratch="20:00:00", scratch_gb=1, print1=False)
+test.calcbpm(scan_dir="/storage/brno12-cerit/home/sonia_celestini/Alyssum_2024/ScanTools_ProtEvol", recode_dir= "VCF_splitVCFsNorepolmerged.masked_DP8.M0.2", pops=['DSP','TSP'], output_name="Aspruneri", output_folder="Dip_vs_Tet", window_size=1, min_snps=1, mem=35, ncpu=2, use_repol=False, keep_intermediates=False, time_scratch="20:00:00", scratch_gb=1, print1=False)
 
