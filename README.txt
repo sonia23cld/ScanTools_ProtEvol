@@ -117,7 +117,9 @@ FURTHER NOTES FROM S. CELESTINI
 
 - The First column of the Popkey has always to be called "Samples", and the Popkey file doesn't necessarily need to be called "Popkey", use what you want. However, it is important that the csv file is comma separated, not semicolon.
 
-- If the scaffold/contig names in your vcf do not start with "scaffold", you will encounter an error. Go to the file recode012.py at line number 22 and change the command based on your needs.
+- In the reference folder you must have the fasta file + the reference index file ".fai"
+
+- If the scaffold/contig names in your vcf do not start with "scaffold", you will encounter an error with the splitVCFs functions. Go to the file recode012.py at line number 22 and change the command based on your needs.
 
 - I noticed that the function calcbpm has a bug (and maybe also all the other functions that do similar calculations - to check). Sometimes, in the output file, the last window/position of a chromosome will be labeled with the chromosome name of the row immediately after. This is a problem, especially if your data is divided into many scaffolds. I wrote an R script to correct the output files (I didn't have time to go to the source problem): Correct_ScanTools.R
 
